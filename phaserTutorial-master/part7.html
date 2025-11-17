@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Making your first Phaser 3 Game - Part 7</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.11.0/dist/phaser.js"></script>
+    <style type="text/css">
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+<script type="text/javascript">
+
+    var config = {
+        type: Phaser.AUTO,
+        width: 800,
+        height: 600,
+        physics: {
+            default: 'arcade',
+            arcade: {
+                gravity: {y: 300},
+                debug: false
+            }
+        },
+        scene: {
+            preload: preload,
+            create: create,
+            update: update
+        }
+    };
+
+    var player;
+    var platforms;
+    var bombs;
+    var cursors;
+
+    var game = new Phaser.Game(config);
+
+    // ===========================
+    // PRELOAD
+    // ===========================
+    function preload() {
+        this.load.image('sky', 'assets/sky.png');
+        this.load.image('ground', 'assets/platform.png');
+        this.load.image('star', 'assets/star.png');
+
+        // jugador (spritesheet original)
+        this.load.spritesheet('dude', 'assets/dude.png', {
+            frameWidth: 32,
+            frameHeight: 48
+        });
+
+        // 💣 bomba como SPRITESHEET
+        this.load.spritesheet('bomb', 'assets/bomb.png', {
+            frameWidth: 14,
+            frameHeight: 14
+        });
+    }
+
+    // ===========================
+    // CREATE
+    // ===========================
+    function create() {
+        this.add.image(400, 300, 'sky');
+
+        platforms = this.physics.add.staticGroup();
+        platforms.create(400, 568, 'ground').setScale(2).refreshBody();
+
+        // grupo de bombas
+        bombs = this.physics.add.group({
+            defaultKey: 'bomb',
+            bounceY: 0.2,
+            collideWorldBounds: true
+        });
+
+        // evento: bombas cayendo del cielo
+        this.time.addEvent({
+            delay: 500,           // cada 0.5 s
+            callback: createBomb,
+            callbackScope: this,
+            loop: true
+        });
+
+        // jugador
+        player = this.physics.add.sprite(100, 450, 'dude');
+        player.setBounce(0.2);
+        player.setCollideWorldBounds(true);
+
+        // animaciones del jugador
+        this.anims.create({
+            key: 'left',
+            frames: this.anims.generateFrameNumbers('dude', {start: 0, end: 3}),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'turn',
+            frames: [{key: 'dude', frame: 4}],
+            frameRate: 20
+        });
+
+        this.anims.create({
+            key: 'right',
+            frames: this.anims.generateFrameNumbers('dude', {start: 5, end: 8}),
+            frameRate: 10,
+            repeat: -1
+        });
+
+        // 💣 animaciones de la bomba
+        // spritesheet de 1 frame: usamos frame 0 para todo
+        this.anims.create({
+            key: 'bomb_idle',
+            frames: [{ key: 'bomb', frame: 0 }],
+            frameRate: 6,
+            repeat: -1
+        });
+
+        this.anims.create({
+            key: 'bomb_explosion',
+            frames: [{ key: 'bomb', frame: 0 }],
+            frameRate: 12,
+            repeat: 0          // una sola vez
+        });
+
+        cursors = this.input.keyboard.createCursorKeys();
+
+        // colisiones
+        this.physics.add.collider(player, platforms);
+        this.physics.add.collider(bombs, platforms, selfDestruct);
+        this.physics.add.collider(player, bombs, touchPlayer);
+    }
+
+    // ===========================
+    // UPDATE (movimiento)
+    // ===========================
+    function update() {
+        if (!player || !player.body || !cursors) return;
+
+        if (cursors.left.isDown) {
+            player.setVelocityX(-160);
+            player.anims.play('left', true);
+        } else if (cursors.right.isDown) {
+            player.setVelocityX(160);
+            player.anims.play('right', true);
+        } else {
+            player.setVelocityX(0);
+            player.anims.play('turn');
+        }
+
+        if (cursors.up.isDown && player.body.touching.down) {
+            player.setVelocityY(-330);
+        }
+    }
+
+    // ===========================
+    // FUNCIONES AUXILIARES
+    // ===========================
+
+    // crea una bomba que cae desde arriba
+    function createBomb() {
+        var x = Phaser.Math.Between(100, 700);
+        var y = -20;
+        var bomb = bombs.create(x, y, 'bomb');
+
+        bomb.setVelocity(0, 80);     // cae hacia abajo
+        bomb.play('bomb_idle');
+    }
+
+    // si toca la plataforma (puedes dejarlo simple)
+    function selfDestruct(bomb, platform) {
+        // si quieres que explote también al tocar el piso,
+        // puedes reutilizar la lógica de touchPlayer aquí.
+        bomb.destroy();
+    }
+
+    // 💥 colisión jugador–bomba
+    function touchPlayer(player, bomb){
+        // 1. la bomba se queda donde chocó
+        bomb.setVelocity(0, 0);
+        bomb.body.enable = false;
+
+        // 2. animación de explosión
+        bomb.anims.play('bomb_explosion');
+
+        // 3. cuando termina, destruirla
+        bomb.on('animationcomplete', function (anim) {
+            if (anim.key === 'bomb_explosion') {
+                bomb.destroy();
+            }
+        });
+
+        // opcional: feedback visual al jugador
+        // player.setTint(0xff0000);
+        // player.anims.play('turn');
+        // player.setVelocity(0, 0);
+    }
+
+</script>
+
+</body>
+</html>
