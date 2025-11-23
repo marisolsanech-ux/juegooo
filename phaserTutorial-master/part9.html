@@ -39,6 +39,14 @@
     var score = 0;
     var scoreText;
 
+    var bombs;
+    var gameOver = false;
+
+    var jumpCount = 0;
+
+    // 👇 NUEVO: puntaje máximo
+    var highScore = 0;
+
     var game = new Phaser.Game(config);
 
     function preload ()
@@ -52,6 +60,17 @@
 
     function create ()
     {
+        // Reiniciamos variables de esta partida
+        score = 0;
+        gameOver = false;
+        jumpCount = 0;
+
+        // 👇 Cargar high score desde localStorage (si existe)
+        var savedHighScore = localStorage.getItem('highScore');
+        if (savedHighScore !== null) {
+            highScore = parseInt(savedHighScore);
+        }
+
         this.add.image(400, 300, 'sky');
 
         platforms = this.physics.add.staticGroup();
@@ -89,6 +108,7 @@
 
         cursors = this.input.keyboard.createCursorKeys();
 
+        // ⭐ Estrellas
         stars = this.physics.add.group({
             key: 'star',
             repeat: 11,
@@ -96,43 +116,73 @@
         });
 
         stars.children.iterate(function (child) {
-
             child.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
-
         });
 
-        scoreText = this.add.text(16, 16, 'score: 0', { fontSize: '32px', fill: '#000' });
+        // 💣 Bombas
+        bombs = this.physics.add.group({
+            key: 'bomb',
+            repeat: 5,
+            setXY: { x: 50, y: 0, stepX: 140 }
+        });
+
+        bombs.children.iterate(function (bomb) {
+            bomb.setBounce(1);
+            bomb.setCollideWorldBounds(true);
+            bomb.setVelocity(
+                Phaser.Math.Between(-200, 200),
+                20
+            );
+        });
+
+        // 👇 Texto con score y máximo
+        scoreText = this.add.text(
+            16,
+            16,
+            'Score: ' + score + '   Max: ' + highScore,
+            { fontSize: '32px', fill: '#000' }
+        );
 
         this.physics.add.collider(player, platforms);
         this.physics.add.collider(stars, platforms);
+        this.physics.add.collider(bombs, platforms);
 
         this.physics.add.overlap(player, stars, collectStar, null, this);
+        this.physics.add.collider(player, bombs, hitBomb, null, this);
     }
 
     function update ()
     {
+        if (gameOver)
+        {
+            return;
+        }
+
         if (cursors.left.isDown)
         {
             player.setVelocityX(-160);
-
             player.anims.play('left', true);
         }
         else if (cursors.right.isDown)
         {
             player.setVelocityX(160);
-
             player.anims.play('right', true);
         }
         else
         {
             player.setVelocityX(0);
-
             player.anims.play('turn');
         }
 
-        if (cursors.up.isDown && player.body.touching.down)
+        if (player.body.touching.down)
+        {
+            jumpCount = 0;
+        }
+
+        if (Phaser.Input.Keyboard.JustDown(cursors.up) && jumpCount < 2)
         {
             player.setVelocityY(-330);
+            jumpCount++;
         }
     }
 
@@ -141,7 +191,22 @@
         star.disableBody(true, true);
 
         score += 10;
-        scoreText.setText('Score: ' + score);
+
+        // 👇 Actualizar high score si se supera
+        if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('highScore', highScore);
+        }
+
+        scoreText.setText('Score: ' + score + '   Max: ' + highScore);
+    }
+
+    function hitBomb (player, bomb)
+    {
+        gameOver = true;
+
+        // Reiniciar la escena
+        this.scene.restart();
     }
 
 </script>
